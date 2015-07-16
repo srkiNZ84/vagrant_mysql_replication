@@ -1,0 +1,6 @@
+-- CREATE USER 'repl'@'%' IDENTIFIED BY 'slavepass';
+GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
+GRANT REPLICATION CLIENT ON *.* TO 'repl'@'%';
+GRANT SUPER ON *.* TO 'repl'@'%';
+GRANT ALL ON *.* TO 'repl'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;

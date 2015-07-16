@@ -1,0 +1,49 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = "hashicorp/precise64"
+
+  config.vm.hostname = "db1.localdomain"
+  config.vm.network :private_network, ip: "10.10.10.11", nictype: "virtio"
+
+  #config.ssh.private_key_path = "../data/keys/priv_rsa"
+  #config.ssh.public_key_path = "../data/keys/pub_rsa.pub"
+
+  config.vm.synced_folder "../data", "/vagrant_data"
+
+  config.vm.provider "virtualbox" do |vb|
+     vb.gui = false
+
+     vb.memory = "2048"
+     vb.cpus = "2"
+     #vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
+     #vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
+  end
+
+  config.vm.provision "shell", run: "always", privileged: true, inline: <<-SHELL
+     ip addr add 10.10.10.21/24 broadcast 10.10.10.255 dev eth1
+     cat /vagrant_data/keys/pub_rsa.pub >> /home/vagrant/.ssh/authorized_keys
+     cp /vagrant_data/keys/priv_rsa /home/vagrant/
+     cp /vagrant_data/keys/known_hosts /home/vagrant/.ssh/
+     apt-key adv --keyserver keys.gnupg.net --recv-keys 1C4CBDCDCD2EFD2A
+     apt-key adv --keyserver keys.gnupg.net --recv-keys 8C718D3B5072E1F5
+     echo "deb http://repo.percona.com/apt precise main" > /etc/apt/sources.list.d/percona.list
+     cp /vagrant_data/mysql.list /etc/apt/sources.list.d/
+     apt-get update
+     echo percona-server-server-5.6 percona-server-server/root_password password secret | debconf-set-selections
+     echo percona-server-server-5.6 percona-server-server/root_password_again password secret | debconf-set-selections
+     apt-get install -y percona-server-server-5.6 percona-xtrabackup mysql-utilities arping vim
+     cp /vagrant_data/my.cnf /etc/mysql/
+     echo "report-host=10.10.10.11" >> /etc/mysql/my.cnf
+     service mysql restart
+     mysql -u root -pletmein < /vagrant_data/db_dump.sql
+     mysql -u root -pletmein < /vagrant_data/privileges.sql
+     mysql -u root -pletmein < /vagrant_data/replication_privileges.sql
+     mysql -u root -pletmein < /vagrant_data/debian-sys-maint.sql
+     sed -i -e 's/password = [[:alnum:]]*/password = letmein/' /etc/mysql/debian.cnf
+     rm -rf /vagrant_data/mysql_backup/
+     innobackupex --user=root --password=letmein --no-timestamp /vagrant_data/mysql_backup/
+     innobackupex --apply-log /vagrant_data/mysql_backup/
+   SHELL
+end
